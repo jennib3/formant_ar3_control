@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <package>
   <name>formant_ar3_control</name>
-  <version>0.1.0</version>
-  <description>AR3 control demo with the Move Group interface</description>
+  <version>1.0.0</version>
+  <description>AR3 control with MoveIt and Formant.ai</description>
   <license>BSD</license>
 
-  <author email="dexterong94@gmail.com">Dexter Ong</author>
+  <author email="brian@formant.io">Brian J/author>
 
-  <maintainer email="dexterong94@gmail.com">Dexter Ong</maintainer>
+  <maintainer email="brian@formant.io">Brian J</maintainer>
 
   <buildtool_depend>catkin</buildtool_depend>
 
