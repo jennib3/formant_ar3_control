@@ -5,7 +5,7 @@
     <arg name="use_existing_calibrations" value="true"/>
   </include>
 
-  <include file="$(find ar3_moveit_config)/launch/brian.launch">
+  <include file="$(find formant_ar3_control)/launch/brian.launch">
   </include>
 
   <include file="$(find formant_ar3_control)/launch/formant_move_demo.launch">
