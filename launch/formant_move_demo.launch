@@ -1,0 +1,3 @@
+<launch>
+  <node name="formant_move_demo_node" pkg="formant_ar3_control" type="formant_move_demo" respawn="false" output="screen"></node>
+</launch>
