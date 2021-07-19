@@ -303,7 +303,7 @@
     <child
       link="link_5" />
     <axis
-      xyz="-1 0 0" />
+      xyz="1 0 0" />
   </joint>
   <link
     name="link_6">

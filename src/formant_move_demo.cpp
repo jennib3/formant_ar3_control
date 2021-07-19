@@ -385,7 +385,7 @@ int main(int argc, char** argv)
   double pos_thresh = 0.5f;
   double rpy_thresh = 0.5f;
   double pos_scaler = 0.01f;
-  double rpy_scaler = 0.01f;
+  double rpy_scaler = 0.03f;
 
   // Reset values to last known good state
   for (int i=0; i < 3; ++i) {
@@ -395,7 +395,7 @@ int main(int argc, char** argv)
   }
 
 
-  ros::Rate rate(10);
+  ros::Rate rate(30);
   while (ros::ok()) {
 
 
@@ -430,12 +430,14 @@ int main(int argc, char** argv)
 
       new_arm_planning.set_arm_pos(i, xyz_pos[i] + new_xyz_rates[i]*pos_scaler);
       ROS_INFO_NAMED("msg", "Changing xyz %i to %f",i, xyz_pos[i] + new_xyz_rates[i]*pos_scaler);
+      arm_control.set_new_plan(true);
 
     }
 
     if (abs(new_rpy_rates[i]) > rpy_thresh) {
       new_arm_planning.set_arm_rpy(i, rpy_angles[i] + new_rpy_rates[i]*rpy_scaler);
       // ROS_INFO_NAMED("msg", "Changing rpy %i",i);
+      arm_control.set_new_plan(true);
     }
   }
 
