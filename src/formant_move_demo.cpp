@@ -567,6 +567,8 @@ int main(int argc, char** argv)
 
     }
 
+    if (successful_plan) planned_joints_pub.publish(proposed_joint_state);
+
     rate.sleep();
   }
 
