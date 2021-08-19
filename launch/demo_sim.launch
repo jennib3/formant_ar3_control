@@ -1,0 +1,13 @@
+<launch>
+
+
+  <include file="$(find ar3_gazebo)/launch/ar3_gazebo_bringup.launch">
+  </include>
+
+  <include file="$(find formant_ar3_control)/launch/brian.launch">
+  </include>
+
+  <include file="$(find formant_ar3_control)/launch/formant_move_demo.launch">
+  </include>
+
+</launch>

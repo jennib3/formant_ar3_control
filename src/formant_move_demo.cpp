@@ -65,9 +65,17 @@ private:
   boost::mutex control_mutex;
   double arm_position[3];
   double arm_euler[3];
+  std::vector<double> joint_position;
   bool should_home{false};
+  double vel_scale{0.1f};
+  double acc_scale{0.1f};
+
+  uint8_t plan_type{0};
 
 public:
+
+  static const uint8_t POSE_PLAN{0};
+  static const uint8_t JOINT_PLAN{1};
 
   void set_new_move(bool value) {
     control_mutex.lock();
@@ -82,9 +90,10 @@ public:
     return ret;
   }
 
-  void set_new_plan(bool value) {
+  void set_new_plan(bool value, uint8_t new_plan_type=POSE_PLAN) {
     control_mutex.lock();
     new_plan = value;
+    plan_type = new_plan_type;
     control_mutex.unlock();
   }
 
@@ -93,6 +102,14 @@ public:
     bool ret = new_plan;
     control_mutex.unlock();
     return ret;
+  }
+
+  uint8_t get_plan_type() {
+    uint8_t value;
+    control_mutex.lock();
+    value = plan_type;
+    control_mutex.unlock();
+    return value;
   }
 
   void set_arm_x(double value) {
@@ -222,12 +239,75 @@ public:
     return ret;
   }
 
+  void set_vel_scale(double value) {
+    control_mutex.lock();
+    vel_scale = value;
+    control_mutex.unlock();
+  }  
+
+  double get_vel_scale() {
+    double ret;
+    control_mutex.lock();
+    ret = vel_scale;
+    control_mutex.unlock();
+    return ret;
+  }
+
+  void set_acc_scale(double value) {
+    control_mutex.lock();
+    acc_scale = value;
+    control_mutex.unlock();
+  }  
+
+  double get_acc_scale() {
+    double ret;
+    control_mutex.lock();
+    ret = acc_scale;
+    control_mutex.unlock();
+    return ret;
+  }
+
+  void set_joint_position(double position, uint8_t index) {
+    control_mutex.lock();
+    joint_position[index] = position;
+    control_mutex.unlock();
+  }
+
+  double get_joint_position(uint8_t index) {
+    double value;
+    control_mutex.lock();
+    value = joint_position[index];
+    control_mutex.unlock();
+
+    return value;
+  }
+
+  std::vector<double> get_joint_positions() {
+    std::vector<double> values;
+    control_mutex.lock();
+    values = joint_position;
+    control_mutex.unlock();
+
+    return values;
+  }
+
+  Arm_control_class(uint8_t num_joints) {
+
+    control_mutex.lock();
+    // For some reason the AR3 starts with joint 1 instead of 0, 
+    // so I'll pad this vector with a (0) index so everything lines up elsewhere
+    for (auto i=0; i <= num_joints; ++i) {
+      joint_position.push_back(0.0f);
+    }
+    control_mutex.unlock();
+  }
+
 };
 
 sensor_msgs::JointState proposed_joint_state;
-Arm_control_class arm_control;
-Arm_control_class arm_planning;
-Arm_control_class new_arm_planning;
+Arm_control_class arm_control(6);
+Arm_control_class arm_planning(6);
+Arm_control_class new_arm_planning(6);
 
 
 bool plan_pose(moveit::planning_interface::MoveGroupInterface *move_group, geometry_msgs::Pose my_pose, ros::Publisher planned_joints_pub){
@@ -235,6 +315,8 @@ bool plan_pose(moveit::planning_interface::MoveGroupInterface *move_group, geome
   moveit::planning_interface::MoveGroupInterface::Plan my_plan;
   
   move_group->setPoseTarget(my_pose);
+  move_group->setMaxVelocityScalingFactor(arm_control.get_vel_scale());
+  move_group->setMaxAccelerationScalingFactor(arm_control.get_acc_scale());
 
   move_group->setPlanningTime(0.3);
   
@@ -262,15 +344,39 @@ bool plan_pose(moveit::planning_interface::MoveGroupInterface *move_group, geome
 };
 
 
-bool plan_joints(moveit::planning_interface::MoveGroupInterface *move_group, std::vector<double> joint_group_positions) {
+bool plan_joints(moveit::planning_interface::MoveGroupInterface *move_group, std::vector<double> joint_group_positions, ros::Publisher planned_joints_pub) {
 
   moveit::planning_interface::MoveGroupInterface::Plan my_plan;
 
+joint_group_positions.erase(joint_group_positions.begin());
+
   move_group->setJointValueTarget(joint_group_positions);
+  move_group->setMaxVelocityScalingFactor(arm_control.get_vel_scale());
+  move_group->setMaxAccelerationScalingFactor(arm_control.get_acc_scale());
 
   bool success = (move_group->plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
 
   ROS_INFO_NAMED("msg", "Planning for Joints %s", success ? "SUCCESS" : "FAILED");
+
+  for (int i=0; i < joint_group_positions.size(); ++i) {
+    ROS_INFO_NAMED("msg", "joint %i plan angle %f", i+1, joint_group_positions[i]);
+  }
+
+  if (success) {
+    robot_state::RobotState start_state(*move_group->getCurrentState());
+    robot_state::RobotState state(start_state);
+
+    const std::vector<double> joints = my_plan.trajectory_.joint_trajectory.points.back().positions;
+
+    // for (int i=0; i < joints.size(); ++i) {
+    //   ROS_INFO_NAMED("msg", "joint %i at %f", i, joints[i]);
+    // }
+
+
+    proposed_joint_state.position = joints;
+    planned_joints_pub.publish(proposed_joint_state);
+
+  }
 
   return success;
 }
@@ -286,6 +392,7 @@ void home(const std_msgs::Bool::ConstPtr& msg) {
   // msg->data;
   ROS_INFO_NAMED("msg", "home");
   arm_control.set_home(true);
+  arm_control.set_new_plan(true);
   arm_control.set_new_move(true);
 }
 
@@ -337,6 +444,28 @@ void new_yaw_value(const std_msgs::Float64::ConstPtr& msg) {
 
 }
 
+void new_vel_value(const std_msgs::Float64::ConstPtr& msg) {
+
+  arm_control.set_vel_scale(msg->data);
+  ROS_INFO_NAMED("msg", "new vel scale value %f", msg->data);
+
+}
+
+void new_acc_value(const std_msgs::Float64::ConstPtr& msg) {
+
+  arm_control.set_acc_scale(msg->data);
+  ROS_INFO_NAMED("msg", "new acc scale value %f", msg->data);
+
+}
+
+void new_joint_value(const std_msgs::Float64::ConstPtr& msg, uint8_t index) {
+
+  arm_control.set_joint_position(msg->data, index);
+  ROS_INFO_NAMED("msg", "new joing %i value %f", index, msg->data);
+  arm_control.set_new_plan(true, arm_control.JOINT_PLAN);
+
+}
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "formant_ar3_control_demo");
@@ -370,6 +499,15 @@ int main(int argc, char** argv)
   ros::Subscriber sub_pitch = node_handle.subscribe("ar3_pitch", 1000, new_pitch_value);
   ros::Subscriber sub_yaw   = node_handle.subscribe("ar3_yaw",   1000, new_yaw_value);
 
+  ros::Subscriber sub_vel   = node_handle.subscribe("ar3_vel_scale",   1000, new_vel_value);
+  ros::Subscriber sub_acc   = node_handle.subscribe("ar3_acc_scale",   1000, new_acc_value);
+
+  ros::Subscriber joint_1_sub = node_handle.subscribe<std_msgs::Float64>("joint_1_angle", 1000, boost::bind(new_joint_value, _1, 1));
+  ros::Subscriber joint_2_sub = node_handle.subscribe<std_msgs::Float64>("joint_2_angle", 1000, boost::bind(new_joint_value, _1, 2));
+  ros::Subscriber joint_3_sub = node_handle.subscribe<std_msgs::Float64>("joint_3_angle", 1000, boost::bind(new_joint_value, _1, 3));
+  ros::Subscriber joint_4_sub = node_handle.subscribe<std_msgs::Float64>("joint_4_angle", 1000, boost::bind(new_joint_value, _1, 4));
+  ros::Subscriber joint_5_sub = node_handle.subscribe<std_msgs::Float64>("joint_5_angle", 1000, boost::bind(new_joint_value, _1, 5));
+  ros::Subscriber joint_6_sub = node_handle.subscribe<std_msgs::Float64>("joint_6_angle", 1000, boost::bind(new_joint_value, _1, 6));
 
   ros::AsyncSpinner spinner(1);
   spinner.start();
@@ -512,7 +650,12 @@ int main(int argc, char** argv)
                                                                                           my_pose.position.y,
                                                                                           my_pose.position.z);
 
-      bool success = plan_pose(&move_group, my_pose, planned_joints_pub);
+      bool success;
+      if (arm_control.get_plan_type() == arm_control.POSE_PLAN || should_home) {
+        success = plan_pose(&move_group, my_pose, planned_joints_pub);
+      } else if (arm_control.get_plan_type() == arm_control.JOINT_PLAN) {
+        success = plan_joints(&move_group, arm_control.get_joint_positions(), planned_joints_pub);
+      }
 
       // We only need to capture if the plan was successful since we'll store the last good plan
       if (success) {
@@ -533,7 +676,7 @@ int main(int argc, char** argv)
         }
       }
 
-      arm_control.set_new_plan(false);
+      arm_control.set_new_plan(false, arm_control.get_plan_type());
       if (should_home) should_home = false;
     }
 
@@ -558,7 +701,14 @@ int main(int argc, char** argv)
 
       // if (success) {
       if (successful_plan) {
-        plan_pose(&move_group, last_good_pose, planned_joints_pub);
+        bool success;
+        if (arm_control.get_plan_type() == arm_control.POSE_PLAN) {
+          ROS_INFO_NAMED("msg", "Planning pose for move command");
+          success = plan_pose(&move_group, my_pose, planned_joints_pub);
+        } else if (arm_control.get_plan_type() == arm_control.JOINT_PLAN) {
+          ROS_INFO_NAMED("msg", "Planning pose for joint command");
+          success = plan_joints(&move_group, arm_control.get_joint_positions(), planned_joints_pub);
+        }
         ROS_INFO_NAMED("msg", "Commanding Move");
         move_group.move();
         ROS_INFO_NAMED("msg", "Move complete");

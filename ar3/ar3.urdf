@@ -297,7 +297,7 @@
     type="continuous">
     <origin
       xyz="0 0 -0.22225"
-      rpy="3.1416 0 -2.8262" />
+      rpy="4.05 0 -2.8262" />
     <parent
       link="link_4" />
     <child
