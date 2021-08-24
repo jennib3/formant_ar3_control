@@ -54,6 +54,7 @@
 #include "sensor_msgs/JointState.h"
 
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <math.h>
 
@@ -62,9 +63,11 @@ class Arm_control_class {
 private:
   bool new_move{false};
   bool new_plan{false};
+  bool euler_mode{true};
   boost::mutex control_mutex;
   double arm_position[3];
   double arm_euler[3];
+  geometry_msgs::Pose planned_pose;
   std::vector<double> joint_position;
   bool should_home{false};
   double vel_scale{0.1f};
@@ -110,6 +113,20 @@ public:
     value = plan_type;
     control_mutex.unlock();
     return value;
+  }
+
+  void set_euler_mode(bool value) {
+    control_mutex.lock();
+    euler_mode = value;
+    control_mutex.unlock();
+  }
+
+  bool get_euler_mode() {
+    bool ret_val;
+    control_mutex.lock();
+    ret_val = euler_mode;
+    control_mutex.unlock();
+    return ret_val;
   }
 
   void set_arm_x(double value) {
@@ -291,6 +308,20 @@ public:
     return values;
   }
 
+  void set_pose(geometry_msgs::Pose new_pose) {
+    control_mutex.lock();
+    planned_pose = new_pose;
+    control_mutex.unlock();
+  }
+
+  geometry_msgs::Pose get_pose() {
+    geometry_msgs::Pose ret_pose;
+    control_mutex.lock();
+    ret_pose = planned_pose;
+    control_mutex.unlock();
+    return ret_pose;    
+  }
+
   Arm_control_class(uint8_t num_joints) {
 
     control_mutex.lock();
@@ -399,6 +430,7 @@ void home(const std_msgs::Bool::ConstPtr& msg) {
 void new_x_value(const std_msgs::Float64::ConstPtr& msg) {
 
   arm_control.set_arm_x(msg->data);
+  arm_control.set_euler_mode(true);
   arm_control.set_new_plan(true);
   // ROS_INFO_NAMED("msg", "new x value %f", msg->data);
 
@@ -407,6 +439,7 @@ void new_x_value(const std_msgs::Float64::ConstPtr& msg) {
 void new_y_value(const std_msgs::Float64::ConstPtr& msg) {
 
   arm_control.set_arm_y(msg->data);
+  arm_control.set_euler_mode(true);
   arm_control.set_new_plan(true);
   // ROS_INFO_NAMED("msg", "new y value %f", msg->data);
 
@@ -415,6 +448,7 @@ void new_y_value(const std_msgs::Float64::ConstPtr& msg) {
 void new_z_value(const std_msgs::Float64::ConstPtr& msg) {
 
   arm_control.set_arm_z(msg->data);
+  arm_control.set_euler_mode(true);
   arm_control.set_new_plan(true);
   // ROS_INFO_NAMED("msg", "new z value %f", msg->data);
 
@@ -423,6 +457,7 @@ void new_z_value(const std_msgs::Float64::ConstPtr& msg) {
 void new_roll_value(const std_msgs::Float64::ConstPtr& msg) {
 
   arm_control.set_arm_roll(msg->data);
+  arm_control.set_euler_mode(true);
   arm_control.set_new_plan(true);
   // ROS_INFO_NAMED("msg", "new roll value %f", msg->data);
 
@@ -431,6 +466,7 @@ void new_roll_value(const std_msgs::Float64::ConstPtr& msg) {
 void new_pitch_value(const std_msgs::Float64::ConstPtr& msg) {
 
   arm_control.set_arm_pitch(msg->data);
+  arm_control.set_euler_mode(true);
   arm_control.set_new_plan(true);
   // ROS_INFO_NAMED("msg", "new pitch value %f", msg->data);
 
@@ -439,6 +475,7 @@ void new_pitch_value(const std_msgs::Float64::ConstPtr& msg) {
 void new_yaw_value(const std_msgs::Float64::ConstPtr& msg) {
 
   arm_control.set_arm_yaw(msg->data);
+  arm_control.set_euler_mode(true);
   arm_control.set_new_plan(true);
   // ROS_INFO_NAMED("msg", "new yaw value %f", msg->data);
 
@@ -461,9 +498,18 @@ void new_acc_value(const std_msgs::Float64::ConstPtr& msg) {
 void new_joint_value(const std_msgs::Float64::ConstPtr& msg, uint8_t index) {
 
   arm_control.set_joint_position(msg->data, index);
-  ROS_INFO_NAMED("msg", "new joing %i value %f", index, msg->data);
+  ROS_INFO_NAMED("msg", "new joint %i value %f", index, msg->data);
   arm_control.set_new_plan(true, arm_control.JOINT_PLAN);
 
+}
+
+void new_pose_value(const geometry_msgs::PoseStamped msg) {
+
+  arm_control.set_pose(msg.pose);
+  arm_control.set_euler_mode(false);
+  arm_control.set_new_plan(true);
+
+  ROS_INFO_NAMED("msg", "new pose");
 }
 
 int main(int argc, char** argv)
@@ -502,12 +548,15 @@ int main(int argc, char** argv)
   ros::Subscriber sub_vel   = node_handle.subscribe("ar3_vel_scale",   1000, new_vel_value);
   ros::Subscriber sub_acc   = node_handle.subscribe("ar3_acc_scale",   1000, new_acc_value);
 
-  ros::Subscriber joint_1_sub = node_handle.subscribe<std_msgs::Float64>("joint_1_angle", 1000, boost::bind(new_joint_value, _1, 1));
-  ros::Subscriber joint_2_sub = node_handle.subscribe<std_msgs::Float64>("joint_2_angle", 1000, boost::bind(new_joint_value, _1, 2));
-  ros::Subscriber joint_3_sub = node_handle.subscribe<std_msgs::Float64>("joint_3_angle", 1000, boost::bind(new_joint_value, _1, 3));
-  ros::Subscriber joint_4_sub = node_handle.subscribe<std_msgs::Float64>("joint_4_angle", 1000, boost::bind(new_joint_value, _1, 4));
-  ros::Subscriber joint_5_sub = node_handle.subscribe<std_msgs::Float64>("joint_5_angle", 1000, boost::bind(new_joint_value, _1, 5));
-  ros::Subscriber joint_6_sub = node_handle.subscribe<std_msgs::Float64>("joint_6_angle", 1000, boost::bind(new_joint_value, _1, 6));
+  ros::Subscriber sub_joint_1 = node_handle.subscribe<std_msgs::Float64>("joint_1_angle", 1000, boost::bind(new_joint_value, _1, 1));
+  ros::Subscriber sub_joint_2 = node_handle.subscribe<std_msgs::Float64>("joint_2_angle", 1000, boost::bind(new_joint_value, _1, 2));
+  ros::Subscriber sub_joint_3 = node_handle.subscribe<std_msgs::Float64>("joint_3_angle", 1000, boost::bind(new_joint_value, _1, 3));
+  ros::Subscriber sub_joint_4 = node_handle.subscribe<std_msgs::Float64>("joint_4_angle", 1000, boost::bind(new_joint_value, _1, 4));
+  ros::Subscriber sub_joint_5 = node_handle.subscribe<std_msgs::Float64>("joint_5_angle", 1000, boost::bind(new_joint_value, _1, 5));
+  ros::Subscriber sub_joint_6 = node_handle.subscribe<std_msgs::Float64>("joint_6_angle", 1000, boost::bind(new_joint_value, _1, 6));
+
+  ros::Subscriber sub_pose  = node_handle.subscribe("/pose/planned",   1000, new_pose_value);
+
 
   ros::AsyncSpinner spinner(1);
   spinner.start();
@@ -617,18 +666,30 @@ int main(int argc, char** argv)
 
     if (arm_control.get_new_move() || arm_control.get_new_plan() || should_home) {
 
-      my_pose.position.x = new_arm_planning.get_arm_pos(0);
-      my_pose.position.y = new_arm_planning.get_arm_y();
-      my_pose.position.z = new_arm_planning.get_arm_z();
+      if (arm_control.get_euler_mode()) {
+        my_pose.position.x = new_arm_planning.get_arm_pos(0);
+        my_pose.position.y = new_arm_planning.get_arm_y();
+        my_pose.position.z = new_arm_planning.get_arm_z();
 
-      quat.setRPY( new_arm_planning.get_arm_roll(), 
-                   new_arm_planning.get_arm_pitch(), 
-                   new_arm_planning.get_arm_yaw() );
+        quat.setRPY( new_arm_planning.get_arm_roll(), 
+                    new_arm_planning.get_arm_pitch(), 
+                    new_arm_planning.get_arm_yaw() );
 
-      // ROS_INFO_NAMED("msg", "what %f %f %f %f",my_pose.position.x, new_arm_planning.get_arm_pos(0), new_arm_planning.get_arm_x(), 1.0);
-      // quat.setRPY( 0, 0, 0 );
-      quat *= static_quat;
-      quat.normalize();
+
+        quat *= static_quat;
+        quat.normalize();
+
+      } else {
+        
+        my_pose = arm_control.get_pose();
+        tf2::fromMsg(my_pose.orientation, quat);
+
+
+
+      }
+
+
+      
     }
 
 
