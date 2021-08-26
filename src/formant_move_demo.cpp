@@ -532,6 +532,7 @@ int main(int argc, char** argv)
   proposed_joint_state.position = {0.0,0.0,0.0,0.0,0.0,0.0};
 
   ros::Publisher planned_joints_pub = node_handle.advertise<sensor_msgs::JointState>("/joint_states_planned", 1000);
+  ros::Publisher plan_failed_pub = node_handle.advertise<std_msgs::Bool>("/plan_failed", 1000);
   
 
   ros::Subscriber sub = node_handle.subscribe("formant_plan_move", 1000, plan_and_move);
@@ -735,7 +736,12 @@ int main(int argc, char** argv)
           new_arm_planning.set_arm_rpy(i, arm_planning.get_arm_rpy(i));
 
         }
+        
       }
+
+      std_msgs::Bool plan_status;
+      plan_status.data = ~success;
+      plan_failed_pub.publish(plan_status);
 
       arm_control.set_new_plan(false, arm_control.get_plan_type());
       if (should_home) should_home = false;
