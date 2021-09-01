@@ -422,6 +422,7 @@ void plan_and_move(const std_msgs::Bool::ConstPtr& msg) {
 void home(const std_msgs::Bool::ConstPtr& msg) {
   // msg->data;
   ROS_INFO_NAMED("msg", "home");
+  arm_control.set_euler_mode(true);
   arm_control.set_home(true);
   arm_control.set_new_plan(true);
   arm_control.set_new_move(true);
@@ -532,7 +533,7 @@ int main(int argc, char** argv)
   proposed_joint_state.position = {0.0,0.0,0.0,0.0,0.0,0.0};
 
   ros::Publisher planned_joints_pub = node_handle.advertise<sensor_msgs::JointState>("/joint_states_planned", 1000);
-  ros::Publisher plan_failed_pub = node_handle.advertise<std_msgs::Bool>("/plan_failed", 1000);
+  ros::Publisher plan_status_pub = node_handle.advertise<std_msgs::Bool>("/plan_succeded", 1000);
   
 
   ros::Subscriber sub = node_handle.subscribe("formant_plan_move", 1000, plan_and_move);
@@ -740,8 +741,8 @@ int main(int argc, char** argv)
       }
 
       std_msgs::Bool plan_status;
-      plan_status.data = ~success;
-      plan_failed_pub.publish(plan_status);
+      plan_status.data = success;
+      plan_status_pub.publish(plan_status);
 
       arm_control.set_new_plan(false, arm_control.get_plan_type());
       if (should_home) should_home = false;
