@@ -513,6 +513,36 @@ void new_pose_value(const geometry_msgs::PoseStamped msg) {
   ROS_INFO_NAMED("msg", "new pose");
 }
 
+ros::Publisher joint_1_pub; 
+ros::Publisher joint_2_pub;
+ros::Publisher joint_3_pub;
+ros::Publisher joint_4_pub;
+ros::Publisher joint_5_pub;
+ros::Publisher joint_6_pub;
+
+void new_joint_state(const sensor_msgs::JointState msg) {
+
+  std_msgs::Float64 joint;
+  joint.data = msg.position[0];
+  joint_1_pub.publish(joint);
+
+  joint.data = msg.position[1];
+  joint_2_pub.publish(joint);
+
+  joint.data = msg.position[2];
+  joint_3_pub.publish(joint);
+
+  joint.data = msg.position[3];
+  joint_4_pub.publish(joint);
+
+  joint.data = msg.position[4];
+  joint_5_pub.publish(joint);
+
+  joint.data = msg.position[5];
+  joint_6_pub.publish(joint);          
+
+}
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "formant_ar3_control_demo");
@@ -558,6 +588,16 @@ int main(int argc, char** argv)
   ros::Subscriber sub_joint_6 = node_handle.subscribe<std_msgs::Float64>("joint_6_angle", 1000, boost::bind(new_joint_value, _1, 6));
 
   ros::Subscriber sub_pose  = node_handle.subscribe("/pose/planned",   1000, new_pose_value);
+
+  joint_1_pub = node_handle.advertise<std_msgs::Float64>("/joint_1_state", 1000);
+  joint_2_pub = node_handle.advertise<std_msgs::Float64>("/joint_2_state", 1000);
+  joint_3_pub = node_handle.advertise<std_msgs::Float64>("/joint_3_state", 1000);
+  joint_4_pub = node_handle.advertise<std_msgs::Float64>("/joint_4_state", 1000);
+  joint_5_pub = node_handle.advertise<std_msgs::Float64>("/joint_5_state", 1000);
+  joint_6_pub = node_handle.advertise<std_msgs::Float64>("/joint_6_state", 1000);
+
+
+  ros::Subscriber sub_joint_splitter = node_handle.subscribe("/joint_states",   1000, new_joint_state);
 
 
   ros::AsyncSpinner spinner(1);
